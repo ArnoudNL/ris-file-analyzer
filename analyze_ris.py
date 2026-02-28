@@ -19,7 +19,7 @@ class RISAnalyzer:
         self.titles = []
         self.databases = []
         self.journals = []
-        self.dois = []  # Store title and DOI pairs
+        self.dois = []  # Store title, authors, and DOI tuples
         self.title_counts = collections.Counter()  # Track frequency of each title
         
     def read_file(self) -> bool:
@@ -29,8 +29,22 @@ class RISAnalyzer:
             return False
         
         try:
-            with open(self.file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            # Try UTF-8 with BOM first, then fall back to UTF-8
+            with open(self.file_path, 'r', encoding='utf-8-sig') as f:
                 content = f.read()
+        except UnicodeDecodeError:
+            try:
+                # Fall back to UTF-8 without BOM
+                with open(self.file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                try:
+                    # Try latin-1 as last resort
+                    with open(self.file_path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+                except Exception as e:
+                    print(f"Error reading file: {e}")
+                    return False
         except Exception as e:
             print(f"Error reading file: {e}")
             return False
@@ -47,6 +61,13 @@ class RISAnalyzer:
                 return match.group(1).strip()
         return "Not Specified"
     
+    def extract_authors(self, record: str) -> str:
+        """Extract all authors from a record and join them"""
+        matches = re.findall(r'^AU\s+-\s+(.*)$', record, re.MULTILINE)
+        if matches:
+            return "; ".join(matches)
+        return "Not Specified"
+    
     def parse_records(self):
         """Parse individual records and extract metadata"""
         for record in self.records:
@@ -59,9 +80,12 @@ class RISAnalyzer:
             self.titles.append((title, clean_title))
             self.title_counts[clean_title] += 1  # Count frequency
             
+            # Extract Authors
+            authors = self.extract_authors(record)
+            
             # Extract DOI
             doi = self.extract_field(record, ['DO'])
-            self.dois.append((title, doi))
+            self.dois.append((title, authors, doi))
             
             # Extract Database
             database = self.extract_field(record, ['DP', 'DB'])
@@ -91,7 +115,7 @@ class RISAnalyzer:
         total_duplicates = sum(duplicates.values()) - len(duplicates)
         
         try:
-            with open(output_path, 'w', newline='', encoding='utf-8') as f:
+            with open(output_path, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
 
                 # Row 1: Source file name
@@ -112,15 +136,15 @@ class RISAnalyzer:
                 writer.writerow(['Database Summary', db_list] if db_list else ['Database Summary', 'None'])
                 writer.writerow([])  # Empty row
 
-                # Titles and DOIs - only unique ones
-                writer.writerow(['Title', 'DOI', 'Frequency'])
+                # Titles, Authors, and DOIs - only unique ones
+                writer.writerow(['Title', 'Authors', 'DOI', 'Frequency'])
                 seen_titles = set()
-                for title, doi in self.dois:
+                for title, authors, doi in self.dois:
                     if title != "Not Specified":
                         clean_title = title.lower().strip()
                         if clean_title not in seen_titles:
                             frequency = self.title_counts[clean_title]
-                            writer.writerow([title, doi, frequency])
+                            writer.writerow([title, authors, doi, frequency])
                             seen_titles.add(clean_title)
 
             print(f"✓ Analysis exported to: {output_path}")
