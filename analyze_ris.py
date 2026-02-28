@@ -100,15 +100,17 @@ class RISAnalyzer:
         if not self.read_file():
             return
         self.parse_records()
-        self.export_to_csv()
+        self.export_to_csv(include_authors=True)
+        self.export_to_csv(include_authors=False)
     
     
-    def export_to_csv(self, output_path: str = None):
+    def export_to_csv(self, output_path: str = None, include_authors: bool = True):
         """Export summary data to CSV file in the requested format"""
         if output_path is None:
             output_dir = Path(__file__).resolve().parent / "output file"
             output_dir.mkdir(parents=True, exist_ok=True)
-            output_path = output_dir / f"{self.file_path.stem}_analysis.csv"
+            suffix = "_analysis.csv" if include_authors else "_analysis_no_authors.csv"
+            output_path = output_dir / f"{self.file_path.stem}{suffix}"
         
         unique_count = len(self.title_counts)
         duplicates = {title: count for title, count in self.title_counts.items() if count > 1}
@@ -136,15 +138,21 @@ class RISAnalyzer:
                 writer.writerow(['Database Summary', db_list] if db_list else ['Database Summary', 'None'])
                 writer.writerow([])  # Empty row
 
-                # Titles, Authors, and DOIs - only unique ones
-                writer.writerow(['Title', 'Authors', 'DOI', 'Frequency'])
+                # Titles, Authors (if included), and DOIs - only unique ones
+                if include_authors:
+                    writer.writerow(['Title', 'Authors', 'DOI', 'Frequency'])
+                else:
+                    writer.writerow(['Title', 'DOI', 'Frequency'])
                 seen_titles = set()
                 for title, authors, doi in self.dois:
                     if title != "Not Specified":
                         clean_title = title.lower().strip()
                         if clean_title not in seen_titles:
                             frequency = self.title_counts[clean_title]
-                            writer.writerow([title, authors, doi, frequency])
+                            if include_authors:
+                                writer.writerow([title, authors, doi, frequency])
+                            else:
+                                writer.writerow([title, doi, frequency])
                             seen_titles.add(clean_title)
 
             print(f"✓ Analysis exported to: {output_path}")
