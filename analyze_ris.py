@@ -132,39 +132,40 @@ def main():
     """Main entry point"""
     import sys
     
-    # Try to find the RIS file
-    possible_paths = [
-        '/Users/arnoudvanrooij/Visual Studio Code/PRISMA Log .ris/input file',
-        Path.cwd() / 'input file',
-        Path.cwd() / 'PRISMA Log .ris',
-    ]
-    
-    # Also check for any .ris files in current directory
-    ris_files = list(Path.cwd().glob('*.ris'))
-    possible_paths.extend(ris_files)
-    
-    file_path = None
+    # Look for RIS files to process
+    input_dir = Path.cwd() / 'input file'
     
     if len(sys.argv) > 1:
-        file_path = sys.argv[1]
+        # Process specified file(s)
+        for arg in sys.argv[1:]:
+            file_path = Path(arg)
+            if file_path.exists() and file_path.suffix == '.ris':
+                analyzer = RISAnalyzer(str(file_path))
+                analyzer.analyze()
+            elif file_path.is_dir():
+                # If a directory is provided, process all .ris files in it
+                for ris_file in file_path.glob('*.ris'):
+                    analyzer = RISAnalyzer(str(ris_file))
+                    analyzer.analyze()
+            else:
+                print(f"File not found or not a .ris file: {arg}")
     else:
-        # Try to find the file automatically
-        for path in possible_paths:
-            if isinstance(path, Path) and path.exists() and path.is_file():
-                file_path = str(path)
-                break
-        
-        if not file_path and ris_files:
-            file_path = str(ris_files[0])
-    
-    if not file_path:
-        print("Usage: python analyze_ris.py <path_to_ris_file>")
-        print("\nExample: python analyze_ris.py my_citations.ris")
-        print("\nNo RIS file found. Please provide a path to your .ris file.")
-        sys.exit(1)
-    
-    analyzer = RISAnalyzer(file_path)
-    analyzer.analyze()
+        # Process all .ris files in the input folder
+        if input_dir.exists():
+            ris_files = list(input_dir.glob('*.ris'))
+            if ris_files:
+                print(f"Found {len(ris_files)} RIS file(s) to process...\n")
+                for ris_file in ris_files:
+                    analyzer = RISAnalyzer(str(ris_file))
+                    analyzer.analyze()
+            else:
+                print(f"No .ris files found in {input_dir}")
+                print(f"\nUsage: python analyze_ris.py <path_to_ris_file>")
+                sys.exit(1)
+        else:
+            print(f"Input directory not found: {input_dir}")
+            print(f"\nUsage: python analyze_ris.py <path_to_ris_file>")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
